@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive Link Generator</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the Inter font and overall aesthetics */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 90%;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            flex-grow: 1;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .btn-primary {
+            background-color: #4285F4;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #357ae8;
+        }
+        .btn-secondary {
+            background-color: #f0f0f0;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        .btn-secondary:hover {
+            background-color: #e0e0e0;
+        }
+        .video-list-container {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            background-color: #f9fafb;
+        }
+        .video-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+            border: 1px solid #e5e7eb;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out;
+        }
+        .video-item:hover {
+            background-color: #eef2ff;
+            transform: translateY(-2px);
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #4285F4;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Google Drive Link Generator</h1>
+
+        <div id="auth-section" class="text-center mb-6">
+            <p id="auth-status-message" class="text-gray-600 mb-4">Initializing Google APIs...</p>
+            <button id="login-btn" class="btn btn-primary hidden">Sign In with Google</button>
+            <button id="logout-btn" class="btn btn-secondary hidden">Sign Out</button>
+        </div>
+
+        <div id="app-content" class="hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Video List Section -->
+                <div class="bg-gray-50 p-6 rounded-lg shadow-inner">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Select a Video</h2>
+                    <button id="pick-file-btn" class="btn btn-primary w-full mb-4" disabled>List My Videos</button>
+                    <div id="video-list" class="video-list-container">
+                        <p class="text-gray-500 text-center" id="list-loading-message">Click "List My Videos" to load.</p>
+                    </div>
+                </div>
+
+                <!-- Link Output Section -->
+                <div class="bg-gray-50 p-6 rounded-lg shadow-inner flex flex-col items-center justify-center">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Generated Link</h2>
+                    <div id="generated-link-output" class="w-full text-center">
+                        <p class="text-gray-600">Select a video from the list to generate its link.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google API Client Library -->
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <!-- Google Identity Services Library -->
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+
+    <script>
+        const CLIENT_ID = window.VITE_APP_CLIENT_ID;
+        const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
+        let authStatusMessage;
+        let loginBtn;
+        let logoutBtn;
+        let pickBtn;
+        let videoList;
+        let listLoadingMessage;
+        let generatedLinkOutput;
+        let appContent;
+
+        let tokenClient;
+        let googleAuth; 
+
+        function gapiLoaded() {
+            gapi.load("client:auth2", async () => {
+                try {
+                    await gapi.client.init({
+                        clientId: CLIENT_ID, 
+                        scope: SCOPES,       
+                        discoveryDocs: [
+                            "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
+                        ],
+                    });
+                    if (authStatusMessage) authStatusMessage.textContent = "Google API client loaded.";
+
+                    googleAuth = gapi.auth2.getAuthInstance();
+                    googleAuth.isSignedIn.listen(updateSignInStatus);
+
+                    updateSignInStatus(googleAuth.isSignedIn.get());
+
+                } catch (error) {
+                    console.error("Error initializing GAPI client:", error);
+                    if (authStatusMessage) {
+                        authStatusMessage.textContent = "Error initializing Google API client. Please ensure your Client ID is correct and Google Drive API is enabled for your project.";
+                    }
+
+                    if (window.google && window.google.accounts && window.google.accounts.oauth2 && loginBtn) {
+                        loginBtn.classList.remove("hidden");
+                    }
+                }
+            });
+        }
+
+        function gisLoaded() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: (response) => {
+                    if (response.error) {
+                        console.error("Authorization failed:", response.error);
+                        if (googleAuth) { // Ensure googleAuth is initialized before checking status
+                            updateSignInStatus(googleAuth.isSignedIn.get());
+                        } else {
+                             // Fallback if googleAuth isn't ready yet, directly update UI
+                            if (authStatusMessage) authStatusMessage.textContent = "Authorization failed. Please try again.";
+                            if (loginBtn) loginBtn.classList.remove("hidden");
+                            if (logoutBtn) logoutBtn.classList.add("hidden");
+                            if (pickBtn) pickBtn.disabled = true;
+                        }
+                        return;
+                    }
+                    gapi.client.setToken(response); // Set the obtained access token for gapi client
+                    updateSignInStatus(true);
+                },
+            });
+            if (authStatusMessage) authStatusMessage.textContent = "Google Identity Services loaded.";
+        }
+
+        function updateSignInStatus(isSignedIn) {
+            if (isSignedIn) {
+                if (loginBtn) loginBtn.classList.add("hidden");
+                if (logoutBtn) logoutBtn.classList.remove("hidden");
+                if (appContent) appContent.classList.remove("hidden");
+                if (authStatusMessage) authStatusMessage.textContent = "Signed in.";
+                if (pickBtn) pickBtn.disabled = false; // Enable pick button when signed in
+                listFiles(); // List files once signed in
+            } else {
+                if (loginBtn) loginBtn.classList.remove("hidden");
+                if (logoutBtn) logoutBtn.classList.add("hidden");
+                if (appContent) appContent.classList.add("hidden"); // Hide app content if not signed in
+                if (authStatusMessage) authStatusMessage.textContent = "Please sign in to view your Google Drive videos.";
+                if (videoList) videoList.innerHTML = '<p class="text-gray-500 text-center" id="list-loading-message">Click "List My Videos" to load.</p>';
+                if (generatedLinkOutput) generatedLinkOutput.innerHTML = '<p class="text-gray-600">Select a video from the list to generate its link.</p>';
+                if (pickBtn) pickBtn.disabled = true; // Disable pick button when signed out
+            }
+        }
+
+        /**
+         * Handles the login button click. Requests an access token.
+         */
+        async function handleLoginClick() {
+            if (tokenClient) {
+                tokenClient.requestAccessToken();
+            } else {
+                if (authStatusMessage) authStatusMessage.textContent = "Google Identity Services not fully loaded yet. Please wait.";
+            }
+        }
+
+        /**
+         * Handles the logout button click. Revokes the access token.
+         */
+        function handleLogoutClick() {
+            const token = gapi.client.getToken();
+            if (token !== null) {
+                google.accounts.oauth2.revoke(token.access_token, () => {
+                    gapi.client.setToken(null); // Clear the token from gapi client
+                    // The isSignedIn listener will trigger updateSignInStatus(false) automatically
+                });
+            }
+        }
+
+        /**
+         * Handles the pick file button click. Lists video files from Google Drive.
+         */
+        async function listFiles() {
+            if (listLoadingMessage) listLoadingMessage.textContent = "Loading videos...";
+            if (videoList) videoList.innerHTML = ''; // Clear previous list items
+            try {
+                const res = await gapi.client.drive.files.list({
+                    q: "mimeType contains 'video/' and trashed = false", // Filter for video files not in trash
+                    fields: "files(id, name, mimeType)", // Request necessary fields
+                    pageSize: 20, // Limit to 20 files for demonstration
+                });
+
+                const files = res.result.files;
+                if (!files || files.length === 0) {
+                    if (listLoadingMessage) listLoadingMessage.textContent = "No video files found in your Drive.";
+                    return;
+                }
+
+                if (listLoadingMessage) listLoadingMessage.classList.add("hidden"); // Hide loading message once files are loaded
+
+                files.forEach((file) => {
+                    const item = document.createElement("div");
+                    item.className = "video-item";
+                    item.innerHTML = `
+                        <span>${file.name}</span>
+                        <button class="btn btn-primary text-sm px-3 py-1 ml-2" data-file-id="${file.id}" data-file-name="${file.name}">Get Link</button>
+                    `; // Changed button text to "Get Link"
+                    item.querySelector("button").onclick = (event) => generateLink(event.target.dataset.fileId, event.target.dataset.fileName); // Changed to generateLink
+                    if (videoList) videoList.appendChild(item);
+                });
+            } catch (error) {
+                console.error("Error listing files:", error);
+                if (listLoadingMessage) listLoadingMessage.textContent = "Error loading videos. Check console for details.";
+            }
+        }
+
+        async function generateLink(fileId, fileName) {
+            if (generatedLinkOutput) generatedLinkOutput.innerHTML = `<div class="loading-spinner"></div> Generating link for "${fileName}"...`;
+            console.log(`Attempting to generate link for: ${fileName} (ID: ${fileId})`);
+
+            try {
+                const currentAccessToken = gapi.client.getToken() ? gapi.client.getToken().access_token : null;
+
+                if (!currentAccessToken) {
+                    if (generatedLinkOutput) generatedLinkOutput.textContent = `Error: Not signed in. Please sign in first.`;
+                    return;
+                }
+
+                // Construct the direct streaming URL with the access token.
+                // The API Key is not included here as it's not used for authenticated requests.
+                const directStreamUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${currentAccessToken}`;
+
+                console.log(`Generated Direct Streaming URL: ${directStreamUrl}`);
+
+                if (generatedLinkOutput) {
+                    generatedLinkOutput.innerHTML = `
+                        <p class="text-gray-700 font-semibold mb-2">Direct Streaming Link for "${fileName}":</p>
+                        <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2 p-4 bg-white border border-blue-200 rounded-lg shadow-md">
+                            <input type="text" id="output-link-input" class="flex-grow p-2 border border-gray-300 rounded-md bg-gray-100 text-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500" value="${directStreamUrl}" readonly />
+                            <button id="copy-link-btn" class="btn btn-primary text-sm px-4 py-2 mt-2 sm:mt-0 shadow-sm hover:shadow-lg">Copy Link</button>
+                            <button id="clear-link-btn" class="btn btn-secondary text-sm px-4 py-2 mt-2 sm:mt-0 shadow-sm hover:shadow-lg">Clear</button>
+                        </div>
+                        <p id="copy-status-message" class="text-xs text-green-600 mt-2"></p>
+                    `;
+
+                    const outputLinkInput = document.getElementById('output-link-input');
+                    const copyLinkBtn = document.getElementById('copy-link-btn');
+                    const clearLinkBtn = document.getElementById('clear-link-btn');
+                    const copyStatusMessage = document.getElementById('copy-status-message');
+
+                    if (copyLinkBtn && outputLinkInput) {
+                        copyLinkBtn.onclick = () => {
+                            outputLinkInput.select();
+                            document.execCommand('copy'); // Use execCommand for broader iframe compatibility
+                            if (copyStatusMessage) {
+                                copyStatusMessage.textContent = 'Link copied to clipboard!';
+                                setTimeout(() => {
+                                    copyStatusMessage.textContent = '';
+                                }, 3000);
+                            }
+                        };
+                    }
+                    if (clearLinkBtn) {
+                        clearLinkBtn.onclick = () => {
+                            if (generatedLinkOutput) {
+                                generatedLinkOutput.innerHTML = '<p class="text-gray-600">Select a video from the list to generate its link.</p>';
+                            }
+                        };
+                    }
+                }
+            } catch (error) {
+                console.error('Error generating link:', error);
+                if (generatedLinkOutput) generatedLinkOutput.textContent = `Error generating link for "${fileName}". Check console for details.`;
+            }
+        }
+
+        // Attach event listeners and get element references after the DOM is fully loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            // Get references to HTML elements
+            authStatusMessage = document.getElementById("auth-status-message");
+            loginBtn = document.getElementById("login-btn");
+            logoutBtn = document.getElementById("logout-btn");
+            pickBtn = document.getElementById("pick-file-btn");
+            videoList = document.getElementById("video-list");
+            listLoadingMessage = document.getElementById("list-loading-message");
+            generatedLinkOutput = document.getElementById("generated-link-output"); // Ensure this is correctly referenced
+            appContent = document.getElementById("app-content");
+
+            // Attach event listeners
+            if (loginBtn) {
+                loginBtn.onclick = handleLoginClick;
+            }
+            if (logoutBtn) {
+                logoutBtn.onclick = handleLogoutClick;
+            }
+            if (pickBtn) {
+                pickBtn.onclick = listFiles; // pickBtn now directly calls listFiles
+            }
+        });
+    </script>
+</head>
+<body class="flex flex-col min-h-screen">
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Google Drive Link Generator</h1>
+
+        <div id="auth-section" class="text-center mb-6">
+            <p id="auth-status-message" class="text-gray-600 mb-4">Initializing Google APIs...</p>
+            <button id="login-btn" class="btn btn-primary hidden">Sign In with Google</button>
+            <button id="logout-btn" class="btn btn-secondary hidden">Sign Out</button>
+        </div>
+
+        <div id="app-content" class="hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Video List Section -->
+                <div class="bg-gray-50 p-6 rounded-lg shadow-inner">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Select a Video</h2>
+                    <button id="pick-file-btn" class="btn btn-primary w-full mb-4" disabled>List My Videos</button>
+                    <div id="video-list" class="video-list-container">
+                        <p class="text-gray-500 text-center" id="list-loading-message">Click "List My Videos" to load.</p>
+                    </div>
+                </div>
+
+                <!-- Link Output Section -->
+                <div class="bg-gray-50 p-6 rounded-lg shadow-inner flex flex-col items-center justify-center">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Generated Link</h2>
+                    <div id="generated-link-output" class="w-full text-center">
+                        <p class="text-gray-600">Select a video from the list to generate its link.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Google API Client Library -->
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <!-- Google Identity Services Library -->
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+</body>
+</html>
