@@ -10,29 +10,29 @@
         /* Custom styles for the Inter font and overall aesthetics */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
+            background-color: #f3f4f6; /* Light gray background */
             display: flex;
             flex-direction: column;
             min-height: 100vh;
         }
         .container {
-            max-width: 90%;
+            max-width: 90%; /* Fluid width */
             margin: 2rem auto;
             padding: 2rem;
             background-color: #ffffff;
-            border-radius: 1rem;
+            border-radius: 1rem; /* Rounded corners */
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            flex-grow: 1;
+            flex-grow: 1; /* Allow container to grow */
         }
         .btn {
             padding: 0.75rem 1.5rem;
-            border-radius: 0.75rem;
+            border-radius: 0.75rem; /* Rounded corners for buttons */
             font-weight: 600;
             cursor: pointer;
             transition: background-color 0.2s ease-in-out;
         }
         .btn-primary {
-            background-color: #4285F4;
+            background-color: #4285F4; /* Google Blue */
             color: white;
         }
         .btn-primary:hover {
@@ -47,7 +47,7 @@
             background-color: #e0e0e0;
         }
         .video-list-container {
-            max-height: 400px;
+            max-height: 400px; /* Limit height for scrollability */
             overflow-y: auto;
             border: 1px solid #e5e7eb;
             border-radius: 0.5rem;
@@ -77,12 +77,38 @@
             width: 24px;
             height: 24px;
             animation: spin 1s linear infinite;
-            margin: 0 auto;
+            margin: 0 auto; /* Center the spinner */
         }
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        /* Style for the link output sections */
+        .link-section {
+            padding: 1rem;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            border-radius: 0.75rem;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+            margin-bottom: 1rem; /* Space between sections */
+        }
+        .link-section:last-child {
+            margin-bottom: 0;
+        }
+        .link-input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            space-y: 0.5rem;
+        }
+        @media (min-width: 640px) { /* Small screens and up */
+            .link-input-group {
+                flex-direction: row;
+                space-y: 0;
+                space-x: 0.5rem;
+            }
+        }
     </style>
+    <!-- IMPORTANT: Include the generated env-config.js BEFORE your main script -->
+    <script src="env-config.js"></script>
 </head>
 <body class="flex flex-col min-h-screen">
     <div class="container">
@@ -107,7 +133,7 @@
 
                 <!-- Link Output Section -->
                 <div class="bg-gray-50 p-6 rounded-lg shadow-inner flex flex-col items-center justify-center">
-                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Generated Link</h2>
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Generated Links</h2>
                     <div id="generated-link-output" class="w-full text-center">
                         <p class="text-gray-600">Select a video from the list to generate its link.</p>
                     </div>
@@ -122,8 +148,18 @@
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 
     <script>
-        const CLIENT_ID = "151654195519-5nk70he7vaf2rts1aru9l0rjf7qhuicq.apps.googleusercontent.com";
+        // CLIENT_ID will now be read directly from the global variable set by env-config.js
+        // This file is generated during the Vercel build process using the VITE_APP_CLIENT_ID environment variable.
+        const CLIENT_ID = '151654195519-5nk70he7vaf2rts1aru9l0rjf7qhuicq.apps.googleusercontent.com';
         const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
+
+        // IMPORTANT: You MUST replace 'YOUR_API_KEY' with your actual API Key from Google Cloud Console.
+        // Go to Google Cloud Console -> APIs & Services -> Credentials -> Create Credentials -> API Key.
+        // Ensure the Google Drive API is ENABLED for your project in "APIs & Services" -> "Library".
+        // This API Key is used for the direct link that works with *publicly shared* files.
+        const API_KEY = 'AIzaSyDqMDG5gpAj5AhpnSsENeP7xx0GNPhsbFc';
+
+        // Get references to HTML elements (will be re-fetched after DOMContentLoaded)
         let authStatusMessage;
         let loginBtn;
         let logoutBtn;
@@ -133,24 +169,31 @@
         let generatedLinkOutput;
         let appContent;
 
-        let tokenClient;
-        let googleAuth; 
+        let tokenClient; // Global variable for GIS client
+        let googleAuth; // Global variable to hold the GoogleAuth instance
 
+        /**
+         * Callback function for when the Google API client library (gapi) is loaded.
+         * This function MUST be defined globally before the gapi.js script tag uses it in onload.
+         */
         function gapiLoaded() {
+            // Load the 'client' and 'auth2' modules. 'auth2' is needed for gapi.auth2.getAuthInstance().
             gapi.load("client:auth2", async () => {
                 try {
                     await gapi.client.init({
-                        clientId: CLIENT_ID, 
-                        scope: SCOPES,       
+                        clientId: CLIENT_ID, // Client ID is crucial for gapi.client to understand your project for OAuth
+                        scope: SCOPES,       // Scope is also crucial
                         discoveryDocs: [
                             "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
                         ],
                     });
                     if (authStatusMessage) authStatusMessage.textContent = "Google API client loaded.";
 
+                    // Get the GoogleAuth object and set up listener for sign-in status changes
                     googleAuth = gapi.auth2.getAuthInstance();
                     googleAuth.isSignedIn.listen(updateSignInStatus);
 
+                    // Initial check of sign-in status to update UI
                     updateSignInStatus(googleAuth.isSignedIn.get());
 
                 } catch (error) {
@@ -158,7 +201,7 @@
                     if (authStatusMessage) {
                         authStatusMessage.textContent = "Error initializing Google API client. Please ensure your Client ID is correct and Google Drive API is enabled for your project.";
                     }
-
+                    // If GAPI init fails, ensure login button is shown if GIS is ready
                     if (window.google && window.google.accounts && window.google.accounts.oauth2 && loginBtn) {
                         loginBtn.classList.remove("hidden");
                     }
@@ -166,13 +209,19 @@
             });
         }
 
+        /**
+         * Callback function for when the Google Identity Services (GIS) library is loaded.
+         * This function MUST be defined globally before the GIS script tag uses it in onload.
+         */
         function gisLoaded() {
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
                 callback: (response) => {
+                    // This callback is executed after the user grants/denies access.
                     if (response.error) {
                         console.error("Authorization failed:", response.error);
+                        // updateSignInStatus will handle UI based on the new (signed out) state
                         if (googleAuth) { // Ensure googleAuth is initialized before checking status
                             updateSignInStatus(googleAuth.isSignedIn.get());
                         } else {
@@ -185,12 +234,19 @@
                         return;
                     }
                     gapi.client.setToken(response); // Set the obtained access token for gapi client
+                    // Manually call updateSignInStatus to ensure UI updates immediately after successful token acquisition
                     updateSignInStatus(true);
                 },
             });
             if (authStatusMessage) authStatusMessage.textContent = "Google Identity Services loaded.";
+            // If GIS is loaded, and GAPI client is also ready, the initial updateSignInStatus will handle visibility.
+            // No need to explicitly show login button here, as updateSignInStatus takes care of it.
         }
 
+        /**
+         * Updates the UI based on the user's sign-in status.
+         * @param {boolean} isSignedIn True if the user is signed in, false otherwise.
+         */
         function updateSignInStatus(isSignedIn) {
             if (isSignedIn) {
                 if (loginBtn) loginBtn.classList.add("hidden");
@@ -262,7 +318,7 @@
                         <span>${file.name}</span>
                         <button class="btn btn-primary text-sm px-3 py-1 ml-2" data-file-id="${file.id}" data-file-name="${file.name}">Get Link</button>
                     `; // Changed button text to "Get Link"
-                    item.querySelector("button").onclick = (event) => generateLink(event.target.dataset.fileId, event.target.dataset.fileName); // Changed to generateLink
+                    item.querySelector("button").onclick = (event) => generateLinks(event.target.dataset.fileId, event.target.dataset.fileName); // Changed to generateLinks
                     if (videoList) videoList.appendChild(item);
                 });
             } catch (error) {
@@ -271,9 +327,14 @@
             }
         }
 
-        async function generateLink(fileId, fileName) {
-            if (generatedLinkOutput) generatedLinkOutput.innerHTML = `<div class="loading-spinner"></div> Generating link for "${fileName}"...`;
-            console.log(`Attempting to generate link for: ${fileName} (ID: ${fileId})`);
+        /**
+         * Generates and displays both types of direct streaming links for the selected video.
+         * @param {string} fileId The ID of the Google Drive file.
+         * @param {string} fileName The name of the video file.
+         */
+        async function generateLinks(fileId, fileName) {
+            if (generatedLinkOutput) generatedLinkOutput.innerHTML = `<div class="loading-spinner"></div> Generating links for "${fileName}"...`;
+            console.log(`Attempting to generate links for: ${fileName} (ID: ${fileId})`);
 
             try {
                 const currentAccessToken = gapi.client.getToken() ? gapi.client.getToken().access_token : null;
@@ -283,43 +344,84 @@
                     return;
                 }
 
-                // Construct the direct streaming URL with the access token.
-                // The API Key is not included here as it's not used for authenticated requests.
-                const directStreamUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${currentAccessToken}`;
+                // Link type 1: Using OAuth2 Access Token (for private files)
+                const directStreamUrlAccessToken = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${currentAccessToken}`;
+                console.log(`Generated Access Token Link: ${directStreamUrlAccessToken}`);
 
-                console.log(`Generated Direct Streaming URL: ${directStreamUrl}`);
+                // Link type 2: Using API Key (only for publicly shared files)
+                const directStreamUrlApiKey = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${API_KEY}`;
+                console.log(`Generated API Key Link: ${directStreamUrlApiKey}`);
+
 
                 if (generatedLinkOutput) {
                     generatedLinkOutput.innerHTML = `
-                        <p class="text-gray-700 font-semibold mb-2">Direct Streaming Link for "${fileName}":</p>
-                        <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2 p-4 bg-white border border-blue-200 rounded-lg shadow-md">
-                            <input type="text" id="output-link-input" class="flex-grow p-2 border border-gray-300 rounded-md bg-gray-100 text-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500" value="${directStreamUrl}" readonly />
-                            <button id="copy-link-btn" class="btn btn-primary text-sm px-4 py-2 mt-2 sm:mt-0 shadow-sm hover:shadow-lg">Copy Link</button>
-                            <button id="clear-link-btn" class="btn btn-secondary text-sm px-4 py-2 mt-2 sm:mt-0 shadow-sm hover:shadow-lg">Clear</button>
+                        <div class="link-section">
+                            <p class="text-gray-700 font-semibold mb-2 text-left">1. Link with Access Token (for private files):</p>
+                            <div class="link-input-group w-full">
+                                <input type="text" id="output-link-access-token-input" class="flex-grow p-2 border border-gray-300 rounded-md bg-gray-100 text-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto" value="${directStreamUrlAccessToken}" readonly />
+                                <button id="copy-access-token-btn" class="btn btn-primary text-sm px-4 py-2 mt-2 sm:mt-0 shadow-sm hover:shadow-lg w-full sm:w-auto">Copy</button>
+                                <button id="clear-access-token-btn" class="btn btn-secondary text-sm px-4 py-2 mt-2 sm:mt-0 shadow-sm hover:shadow-lg w-full sm:w-auto">Clear</button>
+                            </div>
+                            <p id="copy-access-token-status-message" class="text-xs text-green-600 mt-2 text-left"></p>
                         </div>
-                        <p id="copy-status-message" class="text-xs text-green-600 mt-2"></p>
+
+                        <div class="link-section mt-4">
+                            <p class="text-gray-700 font-semibold mb-2 text-left">2. Link with API Key (ONLY for <span class="font-bold text-red-600">publicly shared</span> files):</p>
+                            <div class="link-input-group w-full">
+                                <input type="text" id="output-link-api-key-input" class="flex-grow p-2 border border-gray-300 rounded-md bg-gray-100 text-gray-800 text-sm focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto" value="${directStreamUrlApiKey}" readonly />
+                                <button id="copy-api-key-btn" class="btn btn-primary text-sm px-4 py-2 mt-2 sm:mt-0 shadow-sm hover:shadow-lg w-full sm:w-auto">Copy</button>
+                                <button id="clear-api-key-btn" class="btn btn-secondary text-sm px-4 py-2 mt-2 sm:mt-0 shadow-sm hover:shadow-lg w-full sm:w-auto">Clear</button>
+                            </div>
+                            <p id="copy-api-key-status-message" class="text-xs text-green-600 mt-2 text-left"></p>
+                        </div>
                     `;
 
-                    const outputLinkInput = document.getElementById('output-link-input');
-                    const copyLinkBtn = document.getElementById('copy-link-btn');
-                    const clearLinkBtn = document.getElementById('clear-link-btn');
-                    const copyStatusMessage = document.getElementById('copy-status-message');
+                    // Get references for the new elements
+                    const outputLinkAccessTokenInput = document.getElementById('output-link-access-token-input');
+                    const copyAccessTokenBtn = document.getElementById('copy-access-token-btn');
+                    const clearAccessTokenBtn = document.getElementById('clear-access-token-btn');
+                    const copyAccessTokenStatusMessage = document.getElementById('copy-access-token-status-message');
 
-                    if (copyLinkBtn && outputLinkInput) {
-                        copyLinkBtn.onclick = () => {
-                            outputLinkInput.select();
-                            document.execCommand('copy'); // Use execCommand for broader iframe compatibility
-                            if (copyStatusMessage) {
-                                copyStatusMessage.textContent = 'Link copied to clipboard!';
-                                setTimeout(() => {
-                                    copyStatusMessage.textContent = '';
-                                }, 3000);
+                    const outputLinkApiKeyInput = document.getElementById('output-link-api-key-input');
+                    const copyApiKeyBtn = document.getElementById('copy-api-key-btn');
+                    const clearApiKeyBtn = document.getElementById('clear-api-key-btn');
+                    const copyApiKeyStatusMessage = document.getElementById('copy-api-key-status-message');
+
+                    // Setup event listeners for Access Token link
+                    if (copyAccessTokenBtn && outputLinkAccessTokenInput) {
+                        copyAccessTokenBtn.onclick = () => {
+                            outputLinkAccessTokenInput.select();
+                            document.execCommand('copy');
+                            if (copyAccessTokenStatusMessage) {
+                                copyAccessTokenStatusMessage.textContent = 'Link copied to clipboard!';
+                                setTimeout(() => { copyAccessTokenStatusMessage.textContent = ''; }, 3000);
                             }
                         };
                     }
-                    if (clearLinkBtn) {
-                        clearLinkBtn.onclick = () => {
+                    if (clearAccessTokenBtn) {
+                        clearAccessTokenBtn.onclick = () => {
                             if (generatedLinkOutput) {
+                                // Reset the entire output section to its initial state
+                                generatedLinkOutput.innerHTML = '<p class="text-gray-600">Select a video from the list to generate its link.</p>';
+                            }
+                        };
+                    }
+
+                    // Setup event listeners for API Key link
+                    if (copyApiKeyBtn && outputLinkApiKeyInput) {
+                        copyApiKeyBtn.onclick = () => {
+                            outputLinkApiKeyInput.select();
+                            document.execCommand('copy');
+                            if (copyApiKeyStatusMessage) {
+                                copyApiKeyStatusMessage.textContent = 'Link copied to clipboard!';
+                                setTimeout(() => { copyApiKeyStatusMessage.textContent = ''; }, 3000);
+                            }
+                        };
+                    }
+                    if (clearApiKeyBtn) {
+                        clearApiKeyBtn.onclick = () => {
+                            if (generatedLinkOutput) {
+                                // Reset the entire output section to its initial state
                                 generatedLinkOutput.innerHTML = '<p class="text-gray-600">Select a video from the list to generate its link.</p>';
                             }
                         };
@@ -379,7 +481,7 @@
 
                 <!-- Link Output Section -->
                 <div class="bg-gray-50 p-6 rounded-lg shadow-inner flex flex-col items-center justify-center">
-                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Generated Link</h2>
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Generated Links</h2>
                     <div id="generated-link-output" class="w-full text-center">
                         <p class="text-gray-600">Select a video from the list to generate its link.</p>
                     </div>
