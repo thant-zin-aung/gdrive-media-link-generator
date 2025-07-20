@@ -1,0 +1,7 @@
+{
+  "name": "google-drive-link-generator",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "echo \"window.CLIENT_ID = '\\\"$VITE_APP_CLIENT_ID\\';'\" > env-config.js"
+  }
+}
