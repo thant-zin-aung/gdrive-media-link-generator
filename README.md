@@ -12,12 +12,10 @@ This project allows users to generate **direct playable media links** from publi
 ## 🚀 Demo
 
 [🔗 Live Demo](https://gdrive-media-link-generator.vercel.app/)  
-*(Replace with your actual deployed Vercel or hosting link)*
 
 ## 🛠️ Technologies Used
 
 - HTML / JavaScript
-- Vite / React (optional if frontend is React-based)
 - Google Drive File ID extraction logic
 - Deployed with **Vercel**
 
