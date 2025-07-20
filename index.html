@@ -83,7 +83,6 @@
             to { transform: rotate(360deg); }
         }
     </style>
-    <script src="env-config.js"></script>
 </head>
 <body class="flex flex-col min-h-screen">
     <div class="container">
@@ -123,7 +122,7 @@
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 
     <script>
-        const CLIENT_ID = window.VITE_APP_CLIENT_ID;
+        const CLIENT_ID = "151654195519-5nk70he7vaf2rts1aru9l0rjf7qhuicq.apps.googleusercontent.com";
         const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
         let authStatusMessage;
         let loginBtn;
