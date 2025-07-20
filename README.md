@@ -11,7 +11,7 @@ This project allows users to generate **direct playable media links** from publi
 
 ## 🚀 Demo
 
-[🔗 Live Demo](https://your-deployed-link.vercel.app/)  
+[🔗 Live Demo](https://gdrive-media-link-generator.vercel.app/)  
 *(Replace with your actual deployed Vercel or hosting link)*
 
 ## 🛠️ Technologies Used
